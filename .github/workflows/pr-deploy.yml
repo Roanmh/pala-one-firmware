@@ -1,12 +1,13 @@
 name: PR Deploy
 
 # Downloads the artifact produced by pr-build.yml, deploys it to the
-# gh-pages branch at pr/<N>/, and updates the bot comment with the flasher
-# URL. Triggered via workflow_run so it runs with base-repo permissions even
+# gh-pages branch at pr/<N>/, and posts a bot comment with the flash URL.
+# Triggered via workflow_run so it runs with base-repo permissions even
 # when the triggering PR came from a fork. No fork code is executed here.
 #
 # The PR number is read from pr-number.txt in the artifact because
-# workflow_run suppresses pull_requests[] for fork PRs.
+# workflow_run suppresses pull_requests[] for fork PRs as a security
+# boundary.
 
 on:
   workflow_run:
@@ -16,7 +17,7 @@ on:
 permissions:
   actions: read          # download artifacts from the triggering run
   contents: write        # push to gh-pages
-  pull-requests: write   # update the bot comment
+  pull-requests: write   # post/update comment
 
 concurrency:
   group: gh-pages-deploy
@@ -35,7 +36,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: ./artifacts
 
-      - name: Read PR number
+      - name: Read and validate PR number
         id: pr
         run: |
           number=$(cat artifacts/pr-number.txt)
@@ -54,25 +55,23 @@ jobs:
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Update bot comment with flasher URL
+      - name: Post or update comment
         uses: actions/github-script@v7
         with:
           script: |
             const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
             const sha = '${{ github.event.workflow_run.head_sha }}'.slice(0, 7);
-            // Assumes the default GitHub Pages URL. If this repo ever adopts a
-            // custom Pages domain, update this to match.
+            // Assumes the default GitHub Pages URL. Update if this repo uses
+            // a custom Pages domain.
             const baseUrl =
               `https://${context.repo.owner}.github.io/${context.repo.repo}`;
             const flasherUrl = `${baseUrl}/pr/${prNumber}/`;
             const marker = '<!-- pr-web-flasher -->';
             const body = [
               marker,
-              `## Web Flasher — PR #${prNumber}`,
-              `**[Flash this build →](${flasherUrl})**`,
-              `Built from commit \`${sha}\`. All four board/language variants are included.`,
-              `> ⚠️ This is a preview build, not stable firmware. Only flash if you trust the PR author.`,
-              `> Requires Chrome, Edge, or Opera on desktop with your Pala One plugged in via USB-C.`,
+              `## 🟢 Web Flasher`,
+              `**[Open web flasher →](${flasherUrl})**`,
+              `> ⚠️ Preview build — not stable firmware. Only flash if you trust the PR author.\n> Requires Chrome, Edge, or Opera on desktop with a USB-C data cable.`,
             ].join('\n\n');
 
             const { data: comments } = await github.rest.issues.listComments({
