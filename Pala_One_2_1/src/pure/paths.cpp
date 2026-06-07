@@ -1,4 +1,5 @@
 #include "paths.h"
+#include "../config.h"  // MAX_BOOK_PATH
 
 String stripTxtExt(const String& s) {
   return s.endsWith(".txt") ? s.substring(0, s.length() - 4) : s;
@@ -102,6 +103,15 @@ String sanitizeUploadedFilename(String fname) {
   while (clean.startsWith(".")) clean.remove(0, 1);
   if (!clean.endsWith(".txt")) clean += ".txt";
   if (clean.length() == 0) clean = "book.txt";
+
+  // Ensure /books/<filename> fits within MAX_BOOK_PATH. "/books/" = 7 chars,
+  // ".txt" = 4 chars, so the stem may be at most MAX_BOOK_PATH - 11 chars.
+  static const int kMaxBookFilename = MAX_BOOK_PATH - 7;   // 88
+  static const int kMaxBookStem     = kMaxBookFilename - 4; // 84
+  if ((int)clean.length() > kMaxBookFilename) {
+    clean = clean.substring(0, kMaxBookStem) + ".txt";
+  }
+
   return clean;
 }
 

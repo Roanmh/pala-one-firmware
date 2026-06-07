@@ -64,6 +64,13 @@ static const int MAX_LIBRARY_ENTRIES = (MAX_BOOKS * 2) + (MAX_FOLDERS * 2) + 8;
 static const int MAX_LIST_ITEMS = 16;
 static const int MAX_LIST_TEXT = 64;
 
+// Book path buffer size (matches BookInfo::path[96] — 95 usable chars + null).
+// All absolute book paths (/books/[folder/]filename.txt) must fit within this.
+// Enforced at upload time in sanitizeUploadedFilename and at move time in
+// handleMoveBook. Existing on-device files whose paths exceed this limit can
+// still be deleted via resolveRealBookPath in the delete handler.
+static const int MAX_BOOK_PATH = 95;
+
 // Apps catalog upper bounds. Match the field widths in PalaAppHeader.name
 // (32) and a generous absolute-path limit for /apps/<filename>.bin (80).
 static const int MAX_APPS = 16;

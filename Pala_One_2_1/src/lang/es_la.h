@@ -237,6 +237,7 @@
 #define D_WEB_ERR_FOLDER_CREATE_FAILED  "fallo al crear carpeta"
 #define D_WEB_ERR_DEST_EXISTS           "destino ya existe"
 #define D_WEB_ERR_MOVE_FAILED           "fallo al mover"
+#define D_WEB_ERR_PATH_TOO_LONG         "ruta demasiado larga (acorte el nombre del archivo)"
 #define D_WEB_ERR_MISSING_ID_PAGE       "id/página faltante"
 #define D_WEB_ERR_MISSING_BOOK_IDX      "libro/idx faltante"
 #define D_WEB_ERR_BAD_BOOK              "libro inválido"

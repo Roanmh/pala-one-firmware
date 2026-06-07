@@ -216,6 +216,44 @@ static void handleFiles() {
   server.send(200, "text/html; charset=utf-8", out);
 }
 
+// If `storedPath` is exactly MAX_BOOK_PATH chars it was truncated mid-filename
+// during catalog load. Scan the parent directory for the file whose name begins
+// with the truncated suffix, and return the real full path. Returns `storedPath`
+// unchanged when the file already exists at that path or cannot be resolved.
+static String resolveRealBookPath(const String& storedPath) {
+  if (FS.exists(storedPath)) return storedPath;
+  if ((int)storedPath.length() != MAX_BOOK_PATH) return storedPath;
+
+  int lastSlash = storedPath.lastIndexOf('/');
+  if (lastSlash < 0) return storedPath;
+
+  String parentDir = storedPath.substring(0, lastSlash);
+  String prefix    = storedPath.substring(lastSlash + 1);
+  if (prefix.length() == 0) return storedPath;
+
+  File dir = FS.open(parentDir);
+  if (!dir || !dir.isDirectory()) { dir.close(); return storedPath; }
+
+  String found;
+  File f = dir.openNextFile();
+  while (f) {
+    if (!f.isDirectory()) {
+      String entryName = String(f.name());
+      String name = entryName.startsWith("/") ? lastPathComponent(entryName) : entryName;
+      if (name.startsWith(prefix) && name.endsWith(".txt")) {
+        found = parentDir + "/" + name;
+        f.close();
+        break;
+      }
+    }
+    f.close();
+    f = dir.openNextFile();
+  }
+  dir.close();
+
+  return found.length() > 0 ? found : storedPath;
+}
+
 static void handleDelete() {
   if (!server.hasArg("id")) {
     server.send(400, "text/plain; charset=utf-8", D_WEB_ERR_MISSING_ID);
@@ -229,9 +267,14 @@ static void handleDelete() {
   }
 
   // Library entry already cleared g_bookview; no book is "current" here.
-  String path = String(g_library.books[id].path);
-  if (FS.exists(path)) FS.remove(path);
-  deleteBookMetadata(path);
+  // storedPath may be truncated if the filename exceeded MAX_BOOK_PATH at scan
+  // time; resolve to the real filesystem path before removing the file.
+  // Metadata (NVS + page cache) is keyed by the stored (truncated) path hash,
+  // so pass storedPath to deleteBookMetadata.
+  String storedPath = String(g_library.books[id].path);
+  String realPath   = resolveRealBookPath(storedPath);
+  if (FS.exists(realPath)) FS.remove(realPath);
+  deleteBookMetadata(storedPath);
   loadBooks();   // refresh catalog so the next read sees the deletion
 
   server.sendHeader("Location", "/files");
@@ -309,33 +352,44 @@ static void handleMoveBook() {
     return;
   }
 
-  String oldPath = String(g_library.books[id].path);
+  // storedPath may be truncated; resolve to the real filesystem path for rename.
+  // NVS metadata is keyed by storedPath's hash, so keep both.
+  String storedPath = String(g_library.books[id].path);
+  String realOldPath = resolveRealBookPath(storedPath);
+
   String folder = sanitizeFolderInput(server.arg("folder"));
   String destDir = (folder.length() == 0) ? String("/books") : String("/books/") + folder;
+
+  String newPath = destDir + "/" + lastPathComponent(realOldPath);
+  if (newPath == realOldPath) {
+    server.sendHeader("Location", "/files");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
+  // Reject if the destination path would exceed the catalog path buffer.
+  if ((int)newPath.length() > MAX_BOOK_PATH) {
+    server.send(400, "text/plain; charset=utf-8", D_WEB_ERR_PATH_TOO_LONG);
+    return;
+  }
 
   if (!ensureDirRecursive(destDir)) {
     server.send(500, "text/plain; charset=utf-8", D_WEB_ERR_FOLDER_CREATE_FAILED);
     return;
   }
 
-  String newPath = destDir + "/" + lastPathComponent(oldPath);
-  if (newPath == oldPath) {
-    server.sendHeader("Location", "/files");
-    server.send(302, "text/plain", "");
-    return;
-  }
   if (FS.exists(newPath)) {
     server.send(409, "text/plain; charset=utf-8", D_WEB_ERR_DEST_EXISTS);
     return;
   }
 
   // Library entry already cleared g_bookview; no book is "current" here.
-  if (!FS.rename(oldPath, newPath)) {
+  if (!FS.rename(realOldPath, newPath)) {
     server.send(500, "text/plain; charset=utf-8", D_WEB_ERR_MOVE_FAILED);
     return;
   }
 
-  migrateBookMetadata(oldPath, newPath);   // NVS keys + page-cache file
+  migrateBookMetadata(storedPath, newPath);   // NVS keys + page-cache file
   loadBooks();   // refresh catalog so the moved book shows in its new folder
 
   server.sendHeader("Location", "/files");

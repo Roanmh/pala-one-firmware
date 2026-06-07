@@ -1,5 +1,6 @@
 #include "test_framework.h"
 #include "pure/paths.h"
+#include <string>
 
 TEST_CASE("stripTxtExt removes only .txt") {
   CHECK(stripTxtExt("book.txt") == "book");
@@ -76,6 +77,24 @@ TEST_CASE("sanitizeUploadedFilename") {
   CHECK(sanitizeUploadedFilename("weird!@#chars.txt") == "weird___chars.txt");
   // Numeric, punctuation in middle stays as filename
   CHECK(sanitizeUploadedFilename("a1-b2.txt") == "a1-b2.txt");
+}
+
+TEST_CASE("sanitizeUploadedFilename caps length so /books/<name> fits in MAX_BOOK_PATH") {
+  // Exactly 84-char stem + ".txt" = 88 chars — should pass through unchanged.
+  String ok = String(std::string(84, 'a').c_str()) + ".txt";
+  CHECK(sanitizeUploadedFilename(ok) == ok);
+
+  // 85-char stem would produce an 89-char filename — must be capped to 88.
+  String over = String(std::string(85, 'b').c_str()) + ".txt";
+  String capped = sanitizeUploadedFilename(over);
+  CHECK((int)capped.length() == 88);
+  CHECK(capped.endsWith(".txt"));
+
+  // Very long name without extension must still end with .txt and be 88 chars.
+  String veryLong = String(std::string(200, 'c').c_str());
+  String result = sanitizeUploadedFilename(veryLong);
+  CHECK((int)result.length() == 88);
+  CHECK(result.endsWith(".txt"));
 }
 
 TEST_CASE("sanitizeUploadedAppFilename") {

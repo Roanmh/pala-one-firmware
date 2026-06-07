@@ -243,6 +243,7 @@
 #define D_WEB_ERR_FOLDER_CREATE_FAILED  "folder create failed"
 #define D_WEB_ERR_DEST_EXISTS           "destination exists"
 #define D_WEB_ERR_MOVE_FAILED           "move failed"
+#define D_WEB_ERR_PATH_TOO_LONG         "path too long (shorten the file name)"
 #define D_WEB_ERR_MISSING_ID_PAGE       "missing id/page"
 #define D_WEB_ERR_MISSING_BOOK_IDX      "missing book/idx"
 #define D_WEB_ERR_BAD_BOOK              "bad book"
